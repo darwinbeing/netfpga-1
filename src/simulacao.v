@@ -657,8 +657,8 @@ endfunction
                $display("ACK tuple: %h\n",tuple[127:0]);
            	   out_wr_int = 0;
            	   in_fifo_rd_en = 0;
-               hash_0_next = crcf0(tuple, 256'h0);
-               hash_1_next = crcf1(tuple, 256'h0); 
+               hash_0_next = {2'b0,crcf0(tuple, 256'h0)};
+               hash_1_next = {1'b0,crcf1(tuple, 256'h0)}; 
                state_next = TEMP;
                ack_pkt_next = 1'b1;
                //ack_pkt = 1'b1;

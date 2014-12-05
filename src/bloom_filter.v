@@ -4,7 +4,7 @@ module bloom_filter
    #(
       parameter DATA_WIDTH = 64,
       parameter CTRL_WIDTH = DATA_WIDTH/8,
-      parameter SRAM_ADDR_WIDTH = 18, //created
+      parameter SRAM_ADDR_WIDTH = 24, //created
       parameter UDP_REG_SRC_WIDTH = 2
    )
    (
@@ -112,6 +112,7 @@ module bloom_filter
 
    reg [21:0]              timer;
    reg [7:0]               bfcur;
+   reg [7:0]               switch_bfcur;
    reg                     data_proc, ack_proc;
    reg                     data_proc_next, ack_proc_next;
    reg [2:0]               state, state_next;
@@ -258,6 +259,8 @@ module bloom_filter
       //test shifter we answer all reqs without processing
       {data_proc_next,ack_proc_next} = in_fifo_dout[21:20];
       
+      switch_bfcur = bfcur - in_fifo_data_dout[23:16];
+
       case(state) 
          SHIFT_RD: begin
             $display("SHIFT_RD: %h\n",in_fifo_addr_nearly_full);
@@ -283,16 +286,28 @@ module bloom_filter
                wr_0_req_next = 1;
                //wr_0_addr_next = in_fifo_addr_dout;
                wr_0_addr_next = next_addr_wr;
-               wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
+               //wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
                next_addr_wr_next = next_addr_wr +1;
                iter_shread_next = iter_shread-1;
                state_next = SHIFT_WR;
+               case(switch_bfcur) begin
+               0: begin
+                  wr_0_data_next = in_fifo_Data_dout;
+               end
+               1: begin
+               wr_0_data_next = {bfcur[3:0],in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
+               end
+               2: begin
+               wr_0_data_next = {bfcur[3:0],in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
+               end
+               wr_0_data_next = {bfcur[3:0],in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
             end
             else begin
                if(iter_shread) begin
                   state_next = SHIFT_WR;
                end
                else begin
+                  $display("sessaoshiftcompleta");
                   state_next = SHIFT_RD;
                end
             end
