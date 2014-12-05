@@ -1,0 +1,311 @@
+`timescale  1ns /  10ps
+
+module bloom_filter
+   #(
+      parameter DATA_WIDTH = 64,
+      parameter CTRL_WIDTH = DATA_WIDTH/8,
+      parameter SRAM_ADDR_WIDTH = 18, //created
+      parameter UDP_REG_SRC_WIDTH = 2
+   )
+   (
+      input  [DATA_WIDTH-1:0]             in_data,
+      input  [CTRL_WIDTH-1:0]             in_ctrl,
+      input                               in_wr,
+      output                              in_rdy,
+
+      output [DATA_WIDTH-1:0]             out_data,
+      output [CTRL_WIDTH-1:0]             out_ctrl,
+      output                              out_wr,
+      input                               out_rdy,
+
+      output reg                          wr_1_req,
+      output reg                          wr_0_req,
+      output reg [SRAM_ADDR_WIDTH:0]      wr_0_addr,
+      output reg [DATA_WIDTH-1:0]         wr_0_data,
+      input                               wr_0_ack,
+
+      output reg                          rd_1_req,
+      output reg                          rd_0_req,
+      output reg [SRAM_ADDR_WIDTH:0]      rd_0_addr,
+      input [DATA_WIDTH-1:0]              rd_0_data,
+      input                               rd_0_ack,
+      input                               rd_0_vld,
+
+      // --- Register interface
+      input                               reg_req_in,
+      input                               reg_ack_in,
+      input                               reg_rd_wr_L_in,
+      input  [`UDP_REG_ADDR_WIDTH-1:0]    reg_addr_in,
+      input  [`CPCI_NF2_DATA_WIDTH-1:0]   reg_data_in,
+      input  [UDP_REG_SRC_WIDTH-1:0]      reg_src_in,
+
+      output                              reg_req_out,
+      output                              reg_ack_out,
+      output                              reg_rd_wr_L_out,
+      output  [`UDP_REG_ADDR_WIDTH-1:0]   reg_addr_out,
+      output  [`CPCI_NF2_DATA_WIDTH-1:0]  reg_data_out,
+      output  [UDP_REG_SRC_WIDTH-1:0]     reg_src_out,
+
+      // misc
+      input                                reset,
+      input                                clk
+   );
+
+   localparam WAIT = 0;
+   localparam WAITSHIFT = 1;
+   localparam WAITWRSHIFT = 2;
+
+   // Define the log2 function
+   `LOG2_FUNC
+
+   wire                    in_fifo_empty;
+   reg                     in_fifo_rd_en;
+   wire [21:0]             in_fifo_data_dout;
+
+   reg [15:0]              timer;
+   reg                     shift_req1,shift_req2,shift_req3,shift_req4,shift_req5, shift_req6;
+   reg                     data_pkt1,data_pkt2,data_pkt3,data_pkt4,data_pkt5,data_pkt6;
+   reg                     ack_pkt1,ack_pkt2,ack_pkt3,ack_pkt4,ack_pkt5, ack_pkt6, teste7, teste8;
+   //reg                     wr1,wr2,wr3,wr4,wr5;
+   reg [SRAM_ADDR_WIDTH-1:0]              wr_0_addr1,wr_0_addr2,wr_0_addr3,wr_0_addr4,wr_0_addr5,wr_0_addr6;
+   wire [SRAM_ADDR_WIDTH-1:0]             hash0, hash1;
+   reg  [9:0]              next_addr;
+   reg [71:0]              wr_0_data1,wr_0_data2,wr_0_data3,wr_0_data4,wr_0_data5;
+   reg                     lock;
+   reg [3:0]               numshift;
+   wire [71:0]             wr_data_shuffled;
+   reg [3:0]               bfcur;
+   reg                data_proc, ack_proc;
+   wire                    in_wr_fifo;
+   reg [2:0]               state;
+
+   reg [4:0]               count_req;
+
+   //assign wr_data_shuffled = rd_0_vld?72'hdeadfeeb:wr_data_shuffled;//&&ack_pkt2?72'hefedead:rd_0_vld&&data_pkt2?72'hfeebdaed:shift_req2?72'hbdeadbdbd:72'hdeadbeef;
+   assign wr_data_shuffled = rd_0_vld&&ack_pkt2?{(rd_0_data[71:68]-4'b001),rd_0_data[67:0]}:rd_0_vld&&data_pkt2?{(rd_0_data[71:68]+4'b001),rd_0_data[68:0]}:shift_req2?{{4'b1111},rd_0_data[71:4]}:wr_data_shuffled;
+   //assign wr_data_shuffled = ack_pkt1?72'habcdef123edc:data_pkt1?72'h12345abcdef:shift_req1?72'habdcef12345:rd_0_data;
+   //assign wr_data_shuffled = /*(shift_req1&&(rd_0_data[23:14]<bfcur))?{(rd_0_data[71:24]>>(3*(bfcur-rd_0_data[23:14]))),rd_0_data[23:14]+10'h1,14'b0}:*/shift_req1?{(rd_0_data[71:26]>>(bfcur+1)),10'h1,14'b0}/*{{72}{1'b0}}*/:data_pkt1?{(rd_0_data[71:69]+3'b001),rd_0_data[68:0]}:ack_pkt1?{(rd_0_data[71:69]-3'b001),rd_0_data[68:0]}:rd_0_data;
+   assign in_wr_fifo = !in_fifo_nearly_full;
+
+   fallthrough_small_fifo #(.WIDTH(22), .MAX_DEPTH_BITS(3)) input_fifo_req 
+        (.din ({data_pkt,ack_pkt,hash0,hash1}),     // Data in
+         .wr_en (in_wr_fifo),               // Write enable
+         .rd_en (in_fifo_rd_en),       // Read the next word 
+         .dout ({in_fifo_data_dout}),
+         .full (),
+         .nearly_full (in_fifo_nearly_full),
+         .empty (in_fifo_empty),
+         .reset (reset),
+         .clk (clk));
+
+   simulacao #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .CTRL_WIDTH(CTRL_WIDTH),
+        .UDP_REG_SRC_WIDTH (UDP_REG_SRC_WIDTH),
+        .SRAM_ADDR_WIDTH(SRAM_ADDR_WIDTH) //added
+    ) simulacao (
+        .out_data              (out_data),
+        .out_ctrl              (out_ctrl),
+        .out_wr                (out_wr),
+        .out_rdy               (out_rdy),
+
+        .in_data              (/*in_fifo_data*/in_data),
+        .in_ctrl              (/*in_fifo_ctrl*/in_ctrl),
+        .in_wr                (in_wr),
+        .in_rdy               (in_rdy),
+
+        .reg_req_in           (reg_req_in),
+        .reg_ack_in           (reg_ack_in),
+        .reg_rd_wr_L_in       (reg_rd_wr_L_in),
+        .reg_addr_in          (reg_addr_in),
+        .reg_data_in          (reg_data_in),
+        .reg_src_in           (reg_src_in),
+
+        .reg_req_out           (reg_req_out),
+        .reg_ack_out           (reg_ack_out),
+        .reg_rd_wr_L_out       (reg_rd_wr_L_out),
+        .reg_addr_out          (reg_addr_out),
+        .reg_data_out          (reg_data_out),
+        .reg_src_out           (reg_src_out),
+
+        .hash_0               (hash0),
+        .hash_1               (hash1),
+        .data_pkt             (data_pkt),
+        .ack_pkt              (ack_pkt),
+        .data_proc            (data_proc),
+        .ack_proc             (ack_proc),
+
+        .clk              (clk),
+        .reset            (reset));
+
+//initialilly bloom filter was implemented with only 1 hash
+
+   always@* begin
+      if(reset) begin
+         $display("RESETED\n");
+         numshift = 0;
+         timer = 0;
+         wr_0_req = 0;
+         rd_0_req = 0;
+         in_fifo_rd_en = 0;
+         //{wr1,wr2,wr3,wr4,wr5}=0;
+         {data_pkt1,data_pkt2,data_pkt3,data_pkt4,data_pkt5,data_pkt6}=0;
+         {ack_pkt1,ack_pkt2,ack_pkt3,ack_pkt4,ack_pkt5,ack_pkt6}=0;
+         lock = 0;
+         next_addr = 0;
+         bfcur = 0;
+         count_req = 0;
+         {teste7,teste8} = 2'b0;
+         state <= WAIT;
+      end
+      else begin
+         in_fifo_rd_en = 0;
+         if(!in_fifo_empty) begin
+            in_fifo_rd_en = lock?0:1;
+         end
+      end
+   end
+
+/*When timer is over, next_addr will be reseted and the bloom filters not
+ shifted will accumulate shifts. When next_addr to visit theses
+bloom filters, they will be adjusted completely*/
+
+   /*always @(posedge clk) begin
+      if(reset) 
+         next_addr <= 0;
+      else begin
+         next_addr <= next_addr + 1;
+      end
+   end*/
+   
+   /*always @(posedge clk) begin
+      if(!lock) begin
+         if(timer >= 4'b1111)
+            next_addr <= 0;
+            bfcur <= 0;
+         end
+         else begin
+            timer <= timer + 1'b1;
+            bfcur <= bfcur + 1;
+         end
+   end*/
+
+   always @(posedge clk) begin
+      if(rd_0_vld)
+         $display("Dadoslidos: %x, shq1: %x, shq2: %x, dat3: %x, dat2: %x, wr_req: %x,t7: %x, t8: %x,ack1: %x, ack2: %x, ack3: %x, ack4: %x, ack5: %x\n",rd_0_data[71:24],shift_req1,shift_req2,data_pkt1,data_pkt2,wr_0_req,teste7,teste8,ack_pkt1,ack_pkt2,ack_pkt3,ack_pkt4,ack_pkt5);
+   end
+
+   always @(posedge clk) begin
+      //wr_0_req <= 0;
+      //$display("fifo_rd_en: %x, empty: %x, wr_fifo: %x, nearly_full: %x\n",in_fifo_rd_en,in_fifo_empty,in_wr_fifo, in_fifo_nearly_full);
+      if(in_fifo_rd_en)
+         $display("in_fifo_data_dout: %x\n",in_fifo_data_dout);
+      $display("in_fifo_data: %x\n",{data_pkt,ack_pkt,hash0,hash1});
+      case(state) 
+      WAIT: begin
+         if(in_fifo_data_dout[21:20] && !in_fifo_empty) begin //ack or data
+            count_req <= count_req+1;
+            $display("Count_req: %x\n", count_req+1);
+            //rd_0_req <= 1;
+            rd_0_addr <= in_fifo_data_dout[19:10];
+            wr_0_addr6 <= in_fifo_data_dout[19:10];
+            {data_proc,ack_proc} <= {in_fifo_data_dout[21:20]};
+            if(in_fifo_data_dout[19:10] < next_addr) begin
+               $display("noshift\n");
+               shift_req6 <= 0;
+               {data_pkt6,ack_pkt6} <= {in_fifo_data_dout[21:20]};
+               {lock} <= {1'b0};
+               rd_0_req <= 1;
+               state <= WAIT;
+            end
+            else begin
+               $display("address not clean yet. NA: %x, HASH: %x\n",next_addr,in_fifo_data_dout[19:10]);
+               shift_req6 <= 1;
+               {data_pkt6,ack_pkt6} <= {2'b0};
+               {lock} <= {1'b1};
+               rd_0_req <= 1;
+               state <= WAITSHIFT;
+            end
+         end
+         else begin
+            $display("shifting2\n");
+            rd_0_req <= 0;
+            rd_0_addr <= next_addr;
+            {data_pkt6,ack_pkt6} <= {2'b0};
+            wr_0_addr6 <= next_addr;
+            shift_req6 <= 0;
+            //next_addr <= next_addr+1;
+            state <= WAIT;
+         end
+      end
+      WAITSHIFT: begin
+         $display("shifting1\n");
+         rd_0_req <= 0;
+         rd_0_addr <= next_addr;
+         wr_0_addr6 <= next_addr;
+         //next_addr <= next_addr+1;
+         {data_pkt6,ack_pkt6} <= {2'b0};
+         shift_req6 <= 0;
+         
+         if(shift_req1) begin
+            $display("destravalock: %x\n", in_fifo_data_dout[19:10]);
+            lock <= 0; //libera in_fifo_rd_en
+            state <= WAITWRSHIFT;
+         end
+         else begin
+            lock <= 1;
+            state <= WAITSHIFT;
+         end
+      end
+      WAITWRSHIFT: begin
+         state <= WAIT;
+      end
+      endcase
+      //pipeline 0
+      shift_req5 <= shift_req6;
+      wr_0_addr5 <= wr_0_addr6;
+      {data_pkt5,ack_pkt5} <= {data_pkt6,ack_pkt6};
+      //pipeline 1
+      shift_req4 <= shift_req5;
+      wr_0_addr4 <= wr_0_addr5;
+      {data_pkt4,ack_pkt4} <= {data_pkt5,ack_pkt5};
+      //pipeline 2
+      shift_req3 <= shift_req4;
+      wr_0_addr3 <= wr_0_addr4;
+      {data_pkt3,ack_pkt3} <= {data_pkt4,ack_pkt4};
+      //pipeline 3
+      shift_req2 <= shift_req3;
+      wr_0_addr2 <= wr_0_addr3;
+      {data_pkt2,ack_pkt2} <= {data_pkt3,ack_pkt3};
+      //pipeline 4
+      shift_req1 <= shift_req2;
+      wr_0_addr1 <= wr_0_addr2;
+      {data_pkt1,ack_pkt1} <= {data_pkt2,ack_pkt2};
+      //pipeline 5
+      wr_0_req <= data_pkt1||ack_pkt1||shift_req1;
+      //wr_0_req <= data_pkt2||ack_pkt2||shift_req2;
+      wr_0_data <= wr_data_shuffled;
+      /*if(ack_pkt1)
+         wr_0_data <= 72'habcdef;
+      else if(data_pkt1)
+         wr_0_data <= 72'h12345abcdef;
+      else if(shift_req1)
+         wr_0_data <= 72'habdcef12345;*/
+      wr_0_addr <= wr_0_addr1;
+      teste7 <= wr_0_req;
+      teste8<=teste7;
+         
+      if(shift_req1) begin
+         $display("shuffled_shift: %x\n", wr_data_shuffled);
+         $display("shuffled_shift: %x\n", rd_0_data);
+      end
+      else if(data_pkt1) begin
+         $display("shuffled_data: %x\n", wr_data_shuffled);
+         $display("shuffled_data: %x\n", rd_0_data);
+      end
+      else if(ack_pkt1) begin
+         $display("shuffled_ack: %x\n", wr_data_shuffled);
+         $display("shuffled_ack: %x\n", rd_0_data);
+      end
+   end //always
+endmodule
