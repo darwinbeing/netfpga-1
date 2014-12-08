@@ -15,7 +15,7 @@ module simulacao
    #(
       parameter DATA_WIDTH = 64,
       parameter CTRL_WIDTH = DATA_WIDTH/8,
-      parameter SRAM_ADDR_WIDTH = 24,
+      parameter SRAM_ADDR_WIDTH = 18,
       parameter UDP_REG_SRC_WIDTH = 2
    )
    (
@@ -320,23 +320,8 @@ endfunction
    reg[15:0]			            length_next;
    reg[15:0]			            length;
 
-   /*reg[CRC_ADDR_WIDTH-1:0]		   hash_0_next;
-   reg[CRC_ADDR_WIDTH-1:0]		   hash_0;
-
-   reg[CRC_ADDR_WIDTH-1:0]		   hash_1_next;
-   reg[CRC_ADDR_WIDTH-1:0]		   hash_1;*/
-   
-   /*wire                          sram0_tri_en;
-   wire                          sram1_tri_en;
-
-   wire                          sram0_we;
-   wire                          sram1_we;*/
-
-   //reg[SRAM_ADDR_WIDTH-1:0]		hash_0_next;
-   reg[23:0]		               hash_0_next;
-
-   //reg[SRAM_ADDR_WIDTH-1:0]		hash_1_next;
-   reg[23:0]		               hash_1_next;
+   reg[SRAM_ADDR_WIDTH-1:0]      hash_0_next;
+   reg[SRAM_ADDR_WIDTH-1:0]		hash_1_next;
 
    reg                           datapkt;
    reg                           datapkt_next;

@@ -4,7 +4,7 @@ module bloom_filter
    #(
       parameter DATA_WIDTH = 64,
       parameter CTRL_WIDTH = DATA_WIDTH/8,
-      parameter SRAM_ADDR_WIDTH = 24, //created
+      parameter SRAM_ADDR_WIDTH = 19, //created
       parameter UDP_REG_SRC_WIDTH = 2
    )
    (
@@ -202,8 +202,8 @@ module bloom_filter
         .reset            (reset));
 
    always@(posedge clk) begin
-      if(data_pkt||ack_pkt)
-         $display("Chegou simulacao\n");
+      /*if(data_pkt||ack_pkt)
+         $display("Chegou simulacao\n");*/
       //if(timer >= 22'b1110010011100001110000) begin
       if(timer >= 'b11111110000) begin
          timer <= 0;

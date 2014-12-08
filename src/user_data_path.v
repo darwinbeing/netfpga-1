@@ -422,7 +422,7 @@ module user_data_path
         .DATA_WIDTH(SRAM_DATA_WIDTH),
         .CTRL_WIDTH(CTRL_WIDTH),
         .UDP_REG_SRC_WIDTH (UDP_REG_SRC_WIDTH),
-        .SRAM_ADDR_WIDTH(24) //created
+        .SRAM_ADDR_WIDTH(18) //created
     ) bfilter (
      .out_data              (op_lut_in_data),
      .out_ctrl              (op_lut_in_ctrl),
