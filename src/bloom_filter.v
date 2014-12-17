@@ -222,7 +222,7 @@ module bloom_filter
 //initialilly bloom filter was implemented with only 1 hash
 
    always@(reset) begin
-         $display("RESETED\n");
+         $display("RESETEDTESTE\n");
          timer = 0;
          wr_0_req = 0;
          rd_0_req = 0;
