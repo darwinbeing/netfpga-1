@@ -355,15 +355,6 @@ module bloom_filter
                iter_shread_next = 0;
                state_next = SHIFT_RD1;
             end
-            /*else begin
-               if(iter_shread) begin
-                  state_next = SHIFT_WR;
-               end
-               else begin
-                  $display("sessaoshiftcompleta");
-                  state_next = SHIFT_RD;
-               end
-            end*/
          end
          LE_MEM1 : begin
             indice_next = 48'h0;
@@ -377,6 +368,7 @@ module bloom_filter
                state_next = SHIFT_RD1;
          end
          LE_MEM2 : begin
+            in_fifo_rd_en = 1;
             rd_0_req_next = 1;
             rd_0_addr_next = in_fifo_dout[2*SRAM_ADDR_WIDTH-1:SRAM_ADDR_WIDTH];
             addr2_next = in_fifo_dout[2*SRAM_ADDR_WIDTH-1:SRAM_ADDR_WIDTH];
