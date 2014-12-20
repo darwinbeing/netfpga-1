@@ -221,8 +221,8 @@ module bloom_filter
       else begin
          timer <= timer+1;
          bfcur <= bfcur;
-         next_addr = {SRAM_ADDR_WIDTH{1'b1}};
-         next_addr_wr = {SRAM_ADDR_WIDTH{1'b1}};
+         /*next_addr = {SRAM_ADDR_WIDTH{1'b1}};
+         next_addr_wr = {SRAM_ADDR_WIDTH{1'b1}};*/
       end
    end
 
