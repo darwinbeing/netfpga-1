@@ -297,16 +297,25 @@ module bloom_filter
          SHIFT_WR: begin
             $display("SHIFT_WR: rd_0_vld: %h\n",in_fifo_data_dout[72]);
             if(!in_fifo_data_empty) begin
-               in_fifo_data_rd_en = 1;
-               wr_0_req_next = 1;
-               //wr_0_addr_next = in_fifo_addr_dout;
-               wr_0_addr_next = next_addr_wr;
-               wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
-               next_addr_wr_next = next_addr_wr +1;
-               iter_shread_next = iter_shread-1;
-               state_next = SHIFT_WR;
+               //if(iter_shread) begin
+                  in_fifo_data_rd_en = 1;
+                  wr_0_req_next = 1;
+                  //wr_0_addr_next = in_fifo_addr_dout;
+                  wr_0_addr_next = next_addr_wr;
+                  wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
+                  next_addr_wr_next = next_addr_wr+1;
+                  state_next = SHIFT_WR;
+               /*end
+               else begin
+                  $display("sessaoshiftcompleta");
+                  state_next = SHIFT_RD;
+               end*/
             end
             else begin
+               iter_shread_next = 0;
+               state_next = SHIFT_RD;
+            end
+            /*else begin
                if(iter_shread) begin
                   state_next = SHIFT_WR;
                end
@@ -314,7 +323,7 @@ module bloom_filter
                   $display("sessaoshiftcompleta");
                   state_next = SHIFT_RD;
                end
-            end
+            end*/
          end
          default : begin
             state_next = SHIFT_RD;
