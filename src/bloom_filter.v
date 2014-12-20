@@ -274,7 +274,7 @@ module bloom_filter
 
       indice_next = indice;
 
-      num_shifts = $signed(bfcur)-$signed(in_fifo_data_dout[23:16]);
+      //num_shifts = $signed(bfcur)-$signed(in_fifo_data_dout[23:16]);
 
       case(state) 
          SHIFT_RD: begin
@@ -324,6 +324,56 @@ module bloom_filter
                   state_next = SHIFT_RD;
                end
             end*/
+         end
+         LE_MEM1 : begin
+            if(!in_fifo_empty) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = in_fifo_dout[SRAM_ADDR_WIDTH-1:0];
+               addr1_next = in_fifo_dout[SRAM_ADDR_WIDTH-1:0];
+               state_next = LE_MEM2;
+            end
+            else 
+               state_next = SHIFT_RD;
+         end
+         LE_MEM2 : begin
+            rd_0_req_next = 1;
+            rd_0_addr_next = in_fifo_dout[2*SRAM_ADDR_WIDTH-1:SRAM_ADDR_WIDTH];
+            addr2_next = in_fifo_dout[2*SRAM_ADDR_WIDTH-1:SRAM_ADDR_WIDTH];
+            if(in_fifo_dout[2+2*SRAM_ADDR_WIDTH-1])
+               state_next = ATUALIZA_BUCKET_DATA;
+            else
+               state_next = ATUALIZA_BUCKET_ACK;
+         end
+         ATUALIZA_BUCKET_DATA : begin
+            if(!in_fifo_data_empty) begin
+               wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16]),bfcur,{2'b0,next_addr_wr},4'b0};
+               state_next = INCREMENTA_BUCKET;
+            end
+            else
+               state_next = ATUALIZA_BUCKET_DATA;
+         end
+         ATUALIZA_BUCKET_ACK : begin
+            if(!in_fifo_data_empty) begin
+               wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16]),bfcur,{2'b0,next_addr_wr},4'b0};
+               state_next = BUSCA_BUCKET;
+            end
+            else
+               state_next = ATUALIZA_BUCKET_ACK;
+         end
+         BUSCA_BUCKET : begin
+            
+         end
+         DECREMENTA_BUCKET : begin
+
+         end
+         INCREMENTA_BUCKET : begin
+
+         end
+         ESCREVE_MEM1 : begin
+
+         end
+         ESCREVE_MEM2 : begin
+
          end
          default : begin
             state_next = SHIFT_RD;
