@@ -12,6 +12,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 module nf2_core #(
+      parameter SRAM_ADDR_WIDTH = 19,
       parameter UDP_REG_SRC_WIDTH = 2
    )
    (
@@ -223,14 +224,12 @@ module nf2_core #(
    wire [CTRL_WIDTH-1:0]              in_ctrl [NUM_QUEUES-1:0];
 
    wire                               wr_0_req;
-   //wire [19-1:0]        wr_0_addr;
-   wire [10-1:0]        wr_0_addr;
+   wire [SRAM_ADDR_WIDTH-1:0]         wr_0_addr;
    wire [DATA_WIDTH+CTRL_WIDTH-1:0]   wr_0_data;
    wire                               wr_0_ack;
 
    wire                               rd_0_req;
-   //wire [19-1:0]        rd_0_addr;
-   wire [10-1:0]        rd_0_addr;
+   wire [SRAM_ADDR_WIDTH-1:0]         rd_0_addr;
    wire [DATA_WIDTH+CTRL_WIDTH-1:0]   rd_0_data;
    wire                               rd_0_vld;
    wire                               rd_0_ack;
@@ -507,7 +506,7 @@ module nf2_core #(
       (* keep_hierarchy = "false" *) sram_arbiter
         #(.SRAM_DATA_WIDTH(DATA_WIDTH+CTRL_WIDTH),
           //.SRAM_ADDR_WIDTH(22))
-          .SRAM_ADDR_WIDTH(10))
+          .SRAM_ADDR_WIDTH(19))
       sram_arbiter
         (// --- Requesters   (read and/or write)
 
@@ -566,24 +565,6 @@ module nf2_core #(
       assign sram2_tri_en  = sram_tri_en;
       /*assign sram_wr_0_req  = wr_0_req;
       assign sram_rd_0_req  = rd_0_req;*/
-
-   always @(*) begin
-      if(wr_0_req) 
-         $display("wr_0_reqnf2: %x\n",wr_0_addr);
-      else if(rd_0_req)
-         $display("rd_0_reqnf2: %x\n",rd_0_addr);
-      //$display("sram1_bw: %h, sram2_bw: %h, sram1_we: %h, sram2_we: %h\n",sram1_bw,sram2_bw,sram1_we, sram2_we);
-      //$display("sram2_rd_data: %h, sram1_rd_data: %h",sram_rd_data[63:32],sram_rd_data[31:0]);
-      //$display("sram2_tri_en: %h, sram1_tri_en: %h",sram1_tri_en[63:32],sram2_tri_en[31:0]);
-      //$display("sram2_addr: %h, sram1_addr: %h",sram1_addr,sram2_addr);
-      /*$display("reg_req: %h, reg_rd_wr_L: %h, reg_addr: %h, reg_wr_data: %h, reg_rd_data: %h, reg_ack: %h\n", sram_reg_req,sram_reg_rd_wr_L,sram_reg_addr,sram_reg_wr_data,sram_reg_rd_data,sram_reg_ack);
-      $display("sram2_rd_data: %h, sram1_rd_data: %h",sram_rd_data[63:32],sram_rd_data[31:0]);*/
-      //end
-      //else begin
-      //   $display("sram1_we == 0. sram1_bw: %h, sram2_bw: %h\n",sram1_bw,sram2_bw);
-      //$display("addr_reg: %h\n",sram_reg_addr);
-      //end
-   end
 
    end // block: sram64
    else if(DATA_WIDTH==32) begin:sram32
