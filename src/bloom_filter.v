@@ -6,7 +6,7 @@ module bloom_filter
       parameter CTRL_WIDTH = DATA_WIDTH/8,
       parameter SRAM_ADDR_WIDTH = 19, //created
       parameter BITSBUCKET    = 4, //created
-      parameter NUMBUCKET  = 1,
+      parameter NUMBUCKET  = 12,
       parameter INDEX_LEN = NUMBUCKET*BITSBUCKET,
       parameter UDP_REG_SRC_WIDTH = 2
    )
@@ -54,16 +54,21 @@ module bloom_filter
       input                                clk
    );
 
-   localparam SHIFT_RD = 0;
+   localparam SHIFT_RD1 = 0;
+   localparam SHIFT_RD2 = 11;
+   localparam SHIFT_RD3 = 12;
+   localparam SHIFT_RD4 = 13;
+   localparam SHIFT_RD5 = 14;
    localparam SHIFT_WR = 1;
    localparam LE_MEM1 = 2;
    localparam LE_MEM2 = 3;
-   localparam ATUALIZA_BUCKET = 4;
-   localparam BUSCA_BUCKET = 5;
-   localparam DECREMENTA_BUCKET = 6;
-   localparam INCREMENTA_BUCKET = 7;
-   localparam ESCREVE_MEM1 = 8;
-   localparam ESCREVE_MEM2 = 9;
+   localparam ATUALIZA_BUCKET_ACK = 4;
+   localparam ATUALIZA_BUCKET_DATA = 5;
+   localparam BUSCA_BUCKET = 6;
+   localparam DECREMENTA_BUCKET = 7;
+   localparam INCREMENTA_BUCKET = 8;
+   localparam ESCREVE_MEM1 = 9;
+   localparam ESCREVE_MEM2 = 10;
    // Define the log2 function
    `LOG2_FUNC
 
@@ -216,6 +221,8 @@ module bloom_filter
       else begin
          timer <= timer+1;
          bfcur <= bfcur;
+         next_addr = {SRAM_ADDR_WIDTH{1'b1}};
+         next_addr_wr = {SRAM_ADDR_WIDTH{1'b1}};
       end
    end
 
@@ -229,11 +236,11 @@ module bloom_filter
          in_fifo_rd_en = 0;
          in_fifo_data_rd_en = 0;
          in_fifo_addr_rd_en = 0;
-         next_addr = 0;
          bfcur = 5;
          iter_shread = 0;
-         state = SHIFT_RD;
+         state = SHIFT_RD1;
          next_addr_wr = 0;
+         next_addr = 0;
          //pacote_dados = 0;
          pacote_ack = 0;
          addr1 = 0;
@@ -277,7 +284,47 @@ module bloom_filter
       //num_shifts = $signed(bfcur)-$signed(in_fifo_data_dout[23:16]);
 
       case(state) 
-         SHIFT_RD: begin
+         SHIFT_RD1: begin
+            if(!in_fifo_data_nearly_full) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = next_addr;
+               next_addr_next = next_addr+1;
+               state_next = SHIFT_RD2;
+            end
+         end
+         SHIFT_RD2: begin
+            if(!in_fifo_data_nearly_full) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = next_addr;
+               next_addr_next = next_addr+1;
+               state_next = SHIFT_RD3;
+            end
+         end
+         SHIFT_RD3: begin
+            if(!in_fifo_data_nearly_full) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = next_addr;
+               next_addr_next = next_addr+1;
+               state_next = SHIFT_RD4;
+            end
+         end
+         SHIFT_RD4: begin
+            if(!in_fifo_data_nearly_full) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = next_addr;
+               next_addr_next = next_addr+1;
+               state_next = SHIFT_RD5;
+            end
+         end
+         SHIFT_RD5: begin
+            if(!in_fifo_data_nearly_full) begin
+               rd_0_req_next = 1;
+               rd_0_addr_next = next_addr;
+               next_addr_next = next_addr+1;
+               state_next = SHIFT_WR;
+            end
+         end
+         /*SHIFT_RD: begin
             $display("SHIFT_RD teste_failed\n");
             if(!in_fifo_data_nearly_full) begin
                if(iter_shread > 5)
@@ -293,27 +340,20 @@ module bloom_filter
             else
                state_next = SHIFT_WR;
             //if fifo full we don't generate new reqs 
-         end
+         end*/
          SHIFT_WR: begin
             $display("SHIFT_WR: rd_0_vld: %h\n",in_fifo_data_dout[72]);
             if(!in_fifo_data_empty) begin
-               //if(iter_shread) begin
-                  in_fifo_data_rd_en = 1;
-                  wr_0_req_next = 1;
-                  //wr_0_addr_next = in_fifo_addr_dout;
-                  wr_0_addr_next = next_addr_wr;
-                  wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{2'b0,next_addr_wr},4'b0};
-                  next_addr_wr_next = next_addr_wr+1;
-                  state_next = SHIFT_WR;
-               /*end
-               else begin
-                  $display("sessaoshiftcompleta");
-                  state_next = SHIFT_RD;
-               end*/
+               in_fifo_data_rd_en = 1;
+               wr_0_req_next = 1;
+               wr_0_addr_next = next_addr_wr;
+               wr_0_data_next = {4'b0,in_fifo_data_dout[71:28],bfcur,{next_addr_wr[11:0]},4'b0};
+               next_addr_wr_next = next_addr_wr+{SRAM_ADDR_WIDTH{1'b1}};
+               state_next = SHIFT_WR;
             end
             else begin
                iter_shread_next = 0;
-               state_next = SHIFT_RD;
+               state_next = SHIFT_RD1;
             end
             /*else begin
                if(iter_shread) begin
@@ -326,6 +366,7 @@ module bloom_filter
             end*/
          end
          LE_MEM1 : begin
+            indice_next = 48'h0;
             if(!in_fifo_empty) begin
                rd_0_req_next = 1;
                rd_0_addr_next = in_fifo_dout[SRAM_ADDR_WIDTH-1:0];
@@ -333,7 +374,7 @@ module bloom_filter
                state_next = LE_MEM2;
             end
             else 
-               state_next = SHIFT_RD;
+               state_next = SHIFT_RD1;
          end
          LE_MEM2 : begin
             rd_0_req_next = 1;
@@ -346,7 +387,10 @@ module bloom_filter
          end
          ATUALIZA_BUCKET_DATA : begin
             if(!in_fifo_data_empty) begin
-               wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16]),bfcur,{2'b0,next_addr_wr},4'b0};
+               if(bfcur >= in_fifo_data_dout[23:16])
+                  wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16])),bfcur,{2'b0,next_addr_wr},4'b0};
+               else
+                  wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)+(11-$signed(in_fifo_data_dout[23:16]))),bfcur,{2'b0,next_addr_wr},4'b0};
                state_next = INCREMENTA_BUCKET;
             end
             else
@@ -354,29 +398,42 @@ module bloom_filter
          end
          ATUALIZA_BUCKET_ACK : begin
             if(!in_fifo_data_empty) begin
-               wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16]),bfcur,{2'b0,next_addr_wr},4'b0};
+               if(bfcur >= in_fifo_data_dout[23:16])
+                  wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)-$signed(in_fifo_data_dout[23:16])),bfcur,{2'b0,next_addr_wr},4'b0};
+               else
+                  wr_0_data_next = {in_fifo_data_dout[71:28]>>($signed(bfcur)+(11-$signed(in_fifo_data_dout[23:16]))),bfcur,{2'b0,next_addr_wr},4'b0};
                state_next = BUSCA_BUCKET;
             end
             else
                state_next = ATUALIZA_BUCKET_ACK;
          end
          BUSCA_BUCKET : begin
-            
+            {indice_next[44],indice_next[40],indice_next[36],
+            indice_next[32],indice_next[28],indice_next[24],
+            indice_next[20],indice_next[16],indice_next[12],
+            indice_next[8],indice_next[4],indice_next[0]} = buscaff(wr_0_data);
+            state_next = DECREMENTA_BUCKET;
          end
          DECREMENTA_BUCKET : begin
-
+            wr_0_data_next = {wr_0_data[71:24]-indice,wr_0_data[23:0]};
+            state_next = ESCREVE_MEM1;
          end
          INCREMENTA_BUCKET : begin
-
+            wr_0_data_next = {wr_0_data[71:68]+4'h1,wr_0_data[67:0]};
+            state_next = ESCREVE_MEM1;
          end
          ESCREVE_MEM1 : begin
-
+            wr_0_addr_next = addr1;
+            wr_0_req_next = 1;
+            state_next = ESCREVE_MEM2;
          end
          ESCREVE_MEM2 : begin
-
+            wr_0_addr_next = addr2;
+            wr_0_req_next = 1;
+            state_next = SHIFT_RD1;
          end
          default : begin
-            state_next = SHIFT_RD;
+            state_next = SHIFT_RD1;
          end
       endcase
    end
